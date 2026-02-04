@@ -15,25 +15,23 @@
             align-items: center;
             min-height: 100vh;
             text-align: center;
+            overflow: hidden; /* Prevent scrollbars from canvas */
         }
         .container {
-            background: white;
-            padding: 3rem;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2rem 3rem;
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             max-width: 600px;
-            border: 2px solid #ffd700; /* Gold border for the King */
+            border: 2px solid #ffd700;
+            position: relative;
+            z-index: 10;
+            backdrop-filter: blur(5px);
         }
         h1 {
-            color: #d32f2f; /* Red like the cape */
+            color: #d32f2f;
             font-size: 2.5rem;
             margin-bottom: 0.5rem;
-        }
-        .emoji {
-            font-size: 4rem;
-            margin: 1rem 0;
-            display: block;
-            animation: float 3s ease-in-out infinite;
         }
         p {
             line-height: 1.6;
@@ -48,19 +46,30 @@
             font-size: 0.9rem;
             color: #795548;
         }
-        @keyframes float {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0px); }
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
         }
-        .cloud {
-            color: #90caf9;
-        }
+        .cloud { color: #90caf9; }
     </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
 <body>
+    <div id="canvas-container"></div>
+
     <div class="container">
-        <span class="emoji">🐵</span>
+        <!-- Replaced Emoji with 3D Canvas Background -->
         <h1>Sun Wukong</h1>
         <h3>The Great Sage, Equal to Heaven</h3>
         
@@ -80,5 +89,127 @@
             <strong>Favorite Fruit:</strong> Immortality Peaches 🍑
         </div>
     </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // Scene Setup
+        const scene = new THREE.Scene();
+        // Light background to match CSS
+        // scene.background = new THREE.Color(0xfdfbfb); 
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffd700, 1.5); // Golden sun
+        dirLight.position.set(5, 5, 5);
+        scene.add(dirLight);
+
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        fillLight.position.set(-5, 0, 5);
+        scene.add(fillLight);
+
+        // --- The Monkey Head Construction ---
+        const monkeyGroup = new THREE.Group();
+
+        // Materials
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0x8D5524, roughness: 0.4 });
+        const faceMat = new THREE.MeshStandardMaterial({ color: 0xE0AC69, roughness: 0.4 }); // Lighter face
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.6, roughness: 0.2 });
+
+        // Main Head (Cranium)
+        const headGeo = new THREE.SphereGeometry(1, 32, 32);
+        const head = new THREE.Mesh(headGeo, skinMat);
+        monkeyGroup.add(head);
+
+        // Face Mask (The heart shape)
+        const faceGeo = new THREE.SphereGeometry(0.85, 32, 32);
+        const face = new THREE.Mesh(faceGeo, faceMat);
+        face.position.z = 0.25;
+        face.position.y = -0.1;
+        face.scale.set(1, 0.8, 0.5);
+        monkeyGroup.add(face);
+
+        // Ears
+        const earGeo = new THREE.SphereGeometry(0.35, 16, 16);
+        const leftEar = new THREE.Mesh(earGeo, skinMat);
+        leftEar.position.set(-0.95, 0, 0);
+        leftEar.scale.set(1, 1.2, 0.5);
+        monkeyGroup.add(leftEar);
+
+        const rightEar = new THREE.Mesh(earGeo, skinMat);
+        rightEar.position.set(0.95, 0, 0);
+        rightEar.scale.set(1, 1.2, 0.5);
+        monkeyGroup.add(rightEar);
+
+        // Eyes
+        const eyeGeo = new THREE.SphereGeometry(0.12, 16, 16);
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+        
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(-0.35, 0.1, 0.6);
+        monkeyGroup.add(leftEye);
+
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(0.35, 0.1, 0.6);
+        monkeyGroup.add(rightEye);
+
+        // The Circlet (Fillet)
+        const circletGeo = new THREE.TorusGeometry(0.92, 0.05, 16, 100);
+        const circlet = new THREE.Mesh(circletGeo, goldMat);
+        circlet.rotation.x = Math.PI / 2;
+        circlet.rotation.y = -0.1;
+        circlet.position.y = 0.45;
+        monkeyGroup.add(circlet);
+
+        scene.add(monkeyGroup);
+
+        // Position Camera
+        camera.position.z = 5;
+        camera.position.y = 0.5;
+
+        // Interaction State
+        let mouseX = 0;
+        let mouseY = 0;
+        const windowHalfX = window.innerWidth / 2;
+        const windowHalfY = window.innerHeight / 2;
+
+        document.addEventListener('mousemove', onDocumentMouseMove);
+
+        function onDocumentMouseMove(event) {
+            mouseX = (event.clientX - windowHalfX) / 200;
+            mouseY = (event.clientY - windowHalfY) / 200;
+        }
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Look at mouse
+            monkeyGroup.rotation.y += (mouseX - monkeyGroup.rotation.y) * 0.05;
+            monkeyGroup.rotation.x += (mouseY - monkeyGroup.rotation.x) * 0.05;
+
+            // Gentle float
+            monkeyGroup.position.y = Math.sin(Date.now() * 0.001) * 0.1;
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
 </body>
 </html>
