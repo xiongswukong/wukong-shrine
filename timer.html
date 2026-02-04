@@ -16,6 +16,7 @@
             align-items: center;
             min-height: 100vh;
             overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .container {
@@ -26,8 +27,8 @@
         /* Top Controls */
         .controls-top {
             display: flex;
-            justify-content: space-between;
-            width: 300px;
+            justify-content: center;
+            gap: 15px;
             margin-bottom: 20px;
         }
 
@@ -44,12 +45,11 @@
             display: flex;
             align-items: center;
             gap: 5px;
+            font-size: 1rem;
         }
 
-        .btn-add:hover {
-            transform: translateY(-2px);
-            background: #ffd700;
-            color: white;
+        .btn-add:active {
+            transform: scale(0.95);
         }
 
         /* The Timer Circle */
@@ -80,7 +80,7 @@
             stroke: #ffd700; /* Golden Fillet */
             stroke-dasharray: 880; /* 2 * PI * 140 */
             stroke-dashoffset: 0;
-            transition: stroke-dashoffset 1s linear;
+            transition: stroke-dashoffset 0.1s linear;
             filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
         }
 
@@ -101,11 +101,11 @@
             justify-content: center;
             align-items: center;
             transition: all 0.2s;
+            z-index: 10;
         }
 
-        .play-btn:hover {
-            transform: translate(-50%, -50%) scale(1.1);
-            background: #b71c1c;
+        .play-btn:active {
+            transform: translate(-50%, -50%) scale(0.95);
         }
 
         .play-icon {
@@ -131,13 +131,15 @@
             font-weight: bold;
             color: #d32f2f;
             margin-top: 20px;
-            text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+            font-feature-settings: "tnum";
+            font-variant-numeric: tabular-nums;
         }
 
         .status-text {
             color: #795548;
             margin-top: 10px;
             font-style: italic;
+            min-height: 1.5em;
         }
 
         /* Cloud Decorations */
@@ -162,9 +164,9 @@
             text-decoration: none;
             color: #555;
             font-weight: bold;
+            display: inline-block;
+            padding: 10px;
         }
-        .back-link:hover { color: #d32f2f; }
-
     </style>
 </head>
 <body>
@@ -175,8 +177,8 @@
 
     <div class="container">
         <div class="controls-top">
-            <button class="btn-add" onclick="addTime(30)">🍑 +30s</button>
-            <button class="btn-add" onclick="addTime(60)">🍑 +60s</button>
+            <button class="btn-add" onclick="addMinutes(1)">+1m</button>
+            <button class="btn-add" onclick="addMinutes(5)">+5m</button>
         </div>
 
         <div class="timer-wrapper">
@@ -184,24 +186,74 @@
                 <circle class="bg-circle" cx="150" cy="150" r="140"></circle>
                 <circle class="progress-circle" cx="150" cy="150" r="140"></circle>
             </svg>
-            <button class="play-btn" onclick="toggleTimer()">
+            <button class="play-btn" id="toggleBtn">
                 <div class="play-icon" id="icon-play"></div>
                 <div class="pause-icon" id="icon-pause"></div>
             </button>
         </div>
 
-        <div class="time-display" id="time-text">25:00</div>
-        <div class="status-text" id="status-text">Ready to Meditate?</div>
+        <div class="time-display" id="time-text">05:00</div>
+        <div class="status-text" id="status-text">Ready?</div>
 
         <br>
         <a href="index.html" class="back-link">← Back to Shrine</a>
     </div>
 
     <script>
-        let timeLeft = 25 * 60; // Default 25m
-        let totalTime = 25 * 60;
-        let timerId = null;
+        // Audio Context for Gong
+        let audioCtx;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playGong() {
+            if (!audioCtx) initAudio();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 2.5); // Deep drop
+            
+            // Gong envelope
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 3);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 3);
+
+            // Add harmonics for metallic sound
+            const osc2 = audioCtx.createOscillator();
+            const gain2 = audioCtx.createGain();
+            osc2.type = 'square';
+            osc2.frequency.setValueAtTime(300, audioCtx.currentTime);
+            osc2.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 2);
+            gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 2);
+            
+            osc2.connect(gain2);
+            gain2.connect(audioCtx.destination);
+            osc2.start();
+            osc2.stop(audioCtx.currentTime + 2);
+        }
+
+        // Timer Logic
+        let duration = 5 * 60; // Seconds
+        let endTime = 0;
         let isRunning = false;
+        let animationFrameId;
+        const defaultStart = 5 * 60;
 
         const circle = document.querySelector('.progress-circle');
         const radius = circle.r.baseVal.value;
@@ -210,72 +262,124 @@
         circle.style.strokeDasharray = `${circumference} ${circumference}`;
         circle.style.strokeDashoffset = 0;
 
-        function setProgress(percent) {
-            const offset = circumference - percent * circumference;
+        // Preload audio on user interaction
+        document.body.addEventListener('touchstart', initAudio, { once: true });
+        document.body.addEventListener('click', initAudio, { once: true });
+
+        function updateDisplay(seconds) {
+            if (seconds < 0) seconds = 0;
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            document.getElementById('time-text').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            
+            // Progress bar
+            // If running, base it on total duration of this session?
+            // Or just visual feedback. Let's make it fill -> empty based on CURRENT duration setting.
+            // If we add time, we need a reference total.
+            // Simplified: Percentage of current target.
+            
+            let total = isRunning ? (endTime - (Date.now() - (seconds * 1000))) / 1000 : duration;
+            // Actually, simplified approach:
+            // Just assume the 'duration' variable is the capacity.
+            
+            const percent = seconds / duration; 
+            // Cap at 1
+            const p = Math.min(1, Math.max(0, percent));
+            const offset = circumference - p * circumference;
             circle.style.strokeDashoffset = offset;
         }
 
-        function updateDisplay() {
-            const m = Math.floor(timeLeft / 60);
-            const s = timeLeft % 60;
-            document.getElementById('time-text').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
-            
-            // Invert progress: Starts full (0 offset), goes to empty (circumference offset)
-            // Wait, Pomodoro usually goes from Full -> Empty.
-            // percent remaining
-            const percent = timeLeft / totalTime;
-            setProgress(percent);
-        }
-
-        function addTime(seconds) {
-            timeLeft += seconds;
-            totalTime += seconds; // Expand the max capacity too? Or just add?
-            // Usually adding time just extends current session.
-            // Let's keep totalTime relative to the START or just max(totalTime, timeLeft)
-            if (timeLeft > totalTime) totalTime = timeLeft;
-            updateDisplay();
-        }
-
-        function toggleTimer() {
+        function addMinutes(mins) {
+            const addSecs = mins * 60;
             if (isRunning) {
-                pause();
+                // Extend the end time
+                endTime += addSecs * 1000;
+                duration += addSecs; // Expand scale
+                updateTimer();
             } else {
-                play();
+                duration += addSecs;
+                updateDisplay(duration);
             }
         }
 
-        function play() {
+        document.getElementById('toggleBtn').addEventListener('click', toggleTimer);
+
+        function toggleTimer() {
+            initAudio(); // Ensure audio context is ready
+            
+            if (isRunning) {
+                pause();
+            } else {
+                start();
+            }
+        }
+
+        function start() {
+            if (duration <= 0) duration = defaultStart;
+            
+            endTime = Date.now() + duration * 1000;
             isRunning = true;
+            
             document.getElementById('icon-play').style.display = 'none';
             document.getElementById('icon-pause').style.display = 'block';
-            document.getElementById('status-text').innerText = "Focus like the Monkey King...";
+            document.getElementById('status-text').innerText = "Focus...";
             
-            timerId = setInterval(() => {
-                if (timeLeft > 0) {
-                    timeLeft--;
-                    updateDisplay();
-                } else {
-                    clearInterval(timerId);
-                    document.getElementById('time-text').innerText = "DONE!";
-                    document.getElementById('status-text').innerText = "Nirvana Achieved. 🧘‍♂️";
-                    isRunning = false;
-                    // Reset icon
-                    document.getElementById('icon-play').style.display = 'block';
-                    document.getElementById('icon-pause').style.display = 'none';
-                }
-            }, 1000);
+            tick();
         }
 
         function pause() {
             isRunning = false;
-            clearInterval(timerId);
+            cancelAnimationFrame(animationFrameId);
+            
+            // Save remaining time
+            const now = Date.now();
+            const remaining = Math.ceil((endTime - now) / 1000);
+            duration = remaining > 0 ? remaining : 0;
+            
             document.getElementById('icon-play').style.display = 'block';
             document.getElementById('icon-pause').style.display = 'none';
-            document.getElementById('status-text').innerText = "Paused.";
+            document.getElementById('status-text').innerText = "Paused";
+        }
+
+        function tick() {
+            if (!isRunning) return;
+
+            const now = Date.now();
+            const remaining = endTime - now;
+
+            if (remaining <= 0) {
+                // Done
+                finish();
+            } else {
+                updateDisplay(remaining / 1000);
+                animationFrameId = requestAnimationFrame(tick);
+            }
+        }
+        
+        function updateTimer() {
+             const now = Date.now();
+             const remaining = endTime - now;
+             updateDisplay(remaining / 1000);
+        }
+
+        function finish() {
+            isRunning = false;
+            duration = 0;
+            updateDisplay(0);
+            
+            document.getElementById('icon-play').style.display = 'block';
+            document.getElementById('icon-pause').style.display = 'none';
+            document.getElementById('status-text').innerText = "Time's Up! 🧘‍♂️";
+            document.title = "Done! - Wukong Timer";
+            
+            playGong();
+            
+            // Vibrator
+            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
         }
 
         // Init
-        updateDisplay();
+        updateDisplay(duration);
     </script>
 </body>
 </html>
