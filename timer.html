@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wukong's Focus Timer 🍑</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            color: #333;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            text-align: center;
+        }
+
+        /* Top Controls */
+        .controls-top {
+            display: flex;
+            justify-content: space-between;
+            width: 300px;
+            margin-bottom: 20px;
+        }
+
+        .btn-add {
+            background: #fff8e1;
+            border: 2px solid #ffd700;
+            color: #d32f2f;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-add:hover {
+            transform: translateY(-2px);
+            background: #ffd700;
+            color: white;
+        }
+
+        /* The Timer Circle */
+        .timer-wrapper {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 0 auto;
+        }
+
+        svg {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        circle {
+            fill: none;
+            stroke-width: 15;
+            stroke-linecap: round;
+        }
+
+        .bg-circle {
+            stroke: #eee;
+        }
+
+        .progress-circle {
+            stroke: #ffd700; /* Golden Fillet */
+            stroke-dasharray: 880; /* 2 * PI * 140 */
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+        }
+
+        /* Play Button (Center) */
+        .play-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: #d32f2f;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(211, 47, 47, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s;
+        }
+
+        .play-btn:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+            background: #b71c1c;
+        }
+
+        .play-icon {
+            width: 0;
+            height: 0;
+            border-left: 25px solid white;
+            border-top: 15px solid transparent;
+            border-bottom: 15px solid transparent;
+            margin-left: 5px; /* Visual centering */
+        }
+
+        .pause-icon {
+            width: 20px;
+            height: 30px;
+            border-left: 8px solid white;
+            border-right: 8px solid white;
+            display: none;
+        }
+
+        /* Time Display */
+        .time-display {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #d32f2f;
+            margin-top: 20px;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.1);
+        }
+
+        .status-text {
+            color: #795548;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        /* Cloud Decorations */
+        .cloud {
+            position: absolute;
+            font-size: 3rem;
+            opacity: 0.5;
+            z-index: -1;
+            animation: float 6s infinite ease-in-out;
+        }
+        .c1 { top: 10%; left: 10%; animation-delay: 0s; }
+        .c2 { bottom: 10%; right: 10%; animation-delay: 2s; }
+        .c3 { top: 20%; right: 20%; animation-delay: 4s; font-size: 2rem; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .back-link {
+            margin-top: 30px;
+            text-decoration: none;
+            color: #555;
+            font-weight: bold;
+        }
+        .back-link:hover { color: #d32f2f; }
+
+    </style>
+</head>
+<body>
+
+    <div class="cloud c1">☁️</div>
+    <div class="cloud c2">☁️</div>
+    <div class="cloud c3">☁️</div>
+
+    <div class="container">
+        <div class="controls-top">
+            <button class="btn-add" onclick="addTime(30)">🍑 +30s</button>
+            <button class="btn-add" onclick="addTime(60)">🍑 +60s</button>
+        </div>
+
+        <div class="timer-wrapper">
+            <svg>
+                <circle class="bg-circle" cx="150" cy="150" r="140"></circle>
+                <circle class="progress-circle" cx="150" cy="150" r="140"></circle>
+            </svg>
+            <button class="play-btn" onclick="toggleTimer()">
+                <div class="play-icon" id="icon-play"></div>
+                <div class="pause-icon" id="icon-pause"></div>
+            </button>
+        </div>
+
+        <div class="time-display" id="time-text">25:00</div>
+        <div class="status-text" id="status-text">Ready to Meditate?</div>
+
+        <br>
+        <a href="index.html" class="back-link">← Back to Shrine</a>
+    </div>
+
+    <script>
+        let timeLeft = 25 * 60; // Default 25m
+        let totalTime = 25 * 60;
+        let timerId = null;
+        let isRunning = false;
+
+        const circle = document.querySelector('.progress-circle');
+        const radius = circle.r.baseVal.value;
+        const circumference = radius * 2 * Math.PI;
+
+        circle.style.strokeDasharray = `${circumference} ${circumference}`;
+        circle.style.strokeDashoffset = 0;
+
+        function setProgress(percent) {
+            const offset = circumference - percent * circumference;
+            circle.style.strokeDashoffset = offset;
+        }
+
+        function updateDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            document.getElementById('time-text').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            
+            // Invert progress: Starts full (0 offset), goes to empty (circumference offset)
+            // Wait, Pomodoro usually goes from Full -> Empty.
+            // percent remaining
+            const percent = timeLeft / totalTime;
+            setProgress(percent);
+        }
+
+        function addTime(seconds) {
+            timeLeft += seconds;
+            totalTime += seconds; // Expand the max capacity too? Or just add?
+            // Usually adding time just extends current session.
+            // Let's keep totalTime relative to the START or just max(totalTime, timeLeft)
+            if (timeLeft > totalTime) totalTime = timeLeft;
+            updateDisplay();
+        }
+
+        function toggleTimer() {
+            if (isRunning) {
+                pause();
+            } else {
+                play();
+            }
+        }
+
+        function play() {
+            isRunning = true;
+            document.getElementById('icon-play').style.display = 'none';
+            document.getElementById('icon-pause').style.display = 'block';
+            document.getElementById('status-text').innerText = "Focus like the Monkey King...";
+            
+            timerId = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateDisplay();
+                } else {
+                    clearInterval(timerId);
+                    document.getElementById('time-text').innerText = "DONE!";
+                    document.getElementById('status-text').innerText = "Nirvana Achieved. 🧘‍♂️";
+                    isRunning = false;
+                    // Reset icon
+                    document.getElementById('icon-play').style.display = 'block';
+                    document.getElementById('icon-pause').style.display = 'none';
+                }
+            }, 1000);
+        }
+
+        function pause() {
+            isRunning = false;
+            clearInterval(timerId);
+            document.getElementById('icon-play').style.display = 'block';
+            document.getElementById('icon-pause').style.display = 'none';
+            document.getElementById('status-text').innerText = "Paused.";
+        }
+
+        // Init
+        updateDisplay();
+    </script>
+</body>
+</html>
